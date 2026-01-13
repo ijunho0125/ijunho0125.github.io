@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ijunho0125 | Portfolio</title>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #131314;
+            font-family: 'Inter', sans-serif;
+            color: #e8eaed;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .glass-pill {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+        }
+
+        .glass-pill:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .glass-pill:active {
+            transform: translateY(1px) scale(0.95);
+        }
+
+        .btn-label {
+            font-size: 10px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            font-weight: 600;
+            opacity: 0.6;
+            margin-bottom: 4px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="container" class="fixed inset-0 z-0"></div>
+
+    <div class="fixed bottom-12 left-0 right-0 z-10 flex items-center justify-center space-x-12 px-8">
+        <div class="flex flex-col items-center">
+            <span class="btn-label">Time Rewind</span>
+            <button id="restoreBtn" class="glass-pill p-4 rounded-full flex items-center justify-center">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                    </path>
+                </svg>
+            </button>
+        </div>
+
+        <div class="flex flex-col items-center transform -translate-y-4">
+            <p class="text-xs font-light tracking-widest text-gray-400 opacity-60 uppercase mb-4">Building the future.
+            </p>
+            <a href="https://github.com/ijunho0125" target="_blank"
+                class="px-8 py-3 rounded-full glass-pill text-sm font-medium tracking-wide flex items-center space-x-2">
+                <span>Visit GitHub</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                </svg>
+            </a>
+        </div>
+
+        <div class="flex flex-col items-center">
+            <span class="btn-label">Disrupt</span>
+            <button id="destroyBtn"
+                class="glass-pill p-4 rounded-full flex items-center justify-center text-red-400 border-red-400/20 hover:text-red-300">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <div class="fixed top-8 left-0 right-0 text-center pointer-events-none opacity-40">
+        <span class="text-[10px] tracking-[0.2em] uppercase font-bold text-gray-500">Interactive Physics</span>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import * as CANNON from 'cannon-es';
+
+        // --- Config ---
+        const CONFIG = {
+            text: 'ijunho0125',
+            voxelSize: 0.05,
+            gridScale: 0.015,
+            disruptionRadius: 3.0, // 마우스 반응 범위
+            mouseForce: 100,      // 마우스 타격 힘
+            explosionStrength: 40,
+            gravityValue: -15,    // 중력 약간 완화
+            rewindDuration: 1.5,  // 되감기 시간 (초)
+            scaleEffectRadius: 2.0, // 마우스 확대 효과 범위
+            maxScale: 2.5         // 최대 확대 배율
+        };
+
+        // --- Scene Setup ---
+        const container = document.getElementById('container');
+        const scene = new THREE.Scene();
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 14);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        // --- Physics World ---
+        const world = new CANNON.World();
+        world.gravity.set(0, 0, 0);
+        world.broadphase = new CANNON.NaiveBroadphase();
+        world.solver.iterations = 15; // 물리 계산 정확도 향상
+
+        // 바닥
+        const groundBody = new CANNON.Body({
+            mass: 0,
+            position: new CANNON.Vec3(0, -6, 0),
+            material: new CANNON.Material({ friction: 0.1, restitution: 0.5 }) // 덜 미끄러지고 덜 튕기게
+        });
+        const groundShape = new CANNON.Plane();
+        groundBody.addShape(groundShape);
+        groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+        world.addBody(groundBody);
+
+        // --- Voxel Logic ---
+        let voxels = [];
+        let isDestroyed = false;
+
+        // 시간 역행(Rewind) 관련 변수
+        let isRewinding = false;
+        let rewindTime = 0;
+        let rewindStartPos = []; // 되감기 시작할 때의 위치 저장소
+        let rewindStartQuat = []; // 되감기 시작할 때의 회전 저장소
+
+        const voxelGeometry = new THREE.BoxGeometry(CONFIG.voxelSize, CONFIG.voxelSize, CONFIG.voxelSize);
+
+        function getDynamicScale() {
+            const vFOV = THREE.MathUtils.degToRad(camera.fov);
+            const visibleHeight = 2 * Math.tan(vFOV / 2) * camera.position.z;
+            const visibleWidth = visibleHeight * camera.aspect;
+            return (visibleWidth * 0.8) / 400;
+        }
+
+        function createVoxelText() {
+            const fontCanvas = document.createElement('canvas');
+            const fontContext = fontCanvas.getContext('2d');
+            fontCanvas.width = 400;
+            fontCanvas.height = 100;
+
+            fontContext.fillStyle = 'white';
+            fontContext.font = 'bold 50px Inter';
+            fontContext.textAlign = 'center';
+            fontContext.textBaseline = 'middle';
+            fontContext.fillText(CONFIG.text, fontCanvas.width / 2, fontCanvas.height / 2);
+
+            const imageData = fontContext.getImageData(0, 0, fontCanvas.width, fontCanvas.height).data;
+            const step = 3;
+            const scale = getDynamicScale();
+
+            for (let y = 0; y < fontCanvas.height; y += step) {
+                for (let x = 0; x < fontCanvas.width; x += step) {
+                    const alpha = imageData[(y * fontCanvas.width + x) * 4 + 3];
+                    if (alpha > 128) {
+                        const nx = (x - fontCanvas.width / 2);
+                        const ny = -(y - fontCanvas.height / 2);
+                        addVoxel(nx * scale, ny * scale, 0, nx, ny);
+                    }
+                }
+            }
+        }
+
+        function addVoxel(x, y, z, nx, ny) {
+            const material = new THREE.MeshPhysicalMaterial({
+                color: 0xffffff,
+                roughness: 0.2,
+                metalness: 0.1,
+                emissive: 0xffffff,
+                emissiveIntensity: 0.8,
+                transparent: true,
+                opacity: 0.95
+            });
+            const mesh = new THREE.Mesh(voxelGeometry, material);
+            mesh.position.set(x, y, z);
+            scene.add(mesh);
+
+            const shape = new CANNON.Box(new CANNON.Vec3(CONFIG.voxelSize / 2, CONFIG.voxelSize / 2, CONFIG.voxelSize / 2));
+            const body = new CANNON.Body({
+                mass: 1,
+                position: new CANNON.Vec3(x, y, z),
+                linearDamping: 0.4, // 공기 저항 증가 (안정화)
+                angularDamping: 0.4
+            });
+            body.addShape(shape);
+            body.sleep();
+            world.addBody(body);
+
+            voxels.push({
+                mesh,
+                body,
+                target: new THREE.Vector3(x, y, z), // 원래 위치
+                targetQuat: new THREE.Quaternion(0, 0, 0, 1), // 원래 회전
+                normX: nx,
+                normY: ny
+            });
+        }
+
+        createVoxelText();
+
+        // --- Interaction Handlers ---
+
+        // 1. DISRUPT (파괴)
+        document.getElementById('destroyBtn').addEventListener('click', () => {
+            isDestroyed = true;
+            isRewinding = false; // 되감기 중단
+            world.gravity.set(0, CONFIG.gravityValue, 0);
+
+            voxels.forEach(v => {
+                v.body.wakeUp();
+                v.body.linearDamping = 0.1; // 움직일 땐 저항 감소
+                v.body.angularDamping = 0.1;
+
+                const impulse = new CANNON.Vec3(
+                    (Math.random() - 0.5) * CONFIG.explosionStrength,
+                    (Math.random() - 0.5) * CONFIG.explosionStrength,
+                    (Math.random() - 0.5) * CONFIG.explosionStrength
+                );
+                v.body.applyImpulse(impulse, v.body.position);
+            });
+        });
+
+        // 2. REALIGN (시간 역행 복구)
+        document.getElementById('restoreBtn').addEventListener('click', () => {
+            if (isRewinding || !isDestroyed) return;
+
+            isDestroyed = false;
+            isRewinding = true;
+            rewindTime = 0;
+            world.gravity.set(0, 0, 0); // 중력 끄기
+
+            // 현재 위치 저장 (되감기 시작점)
+            rewindStartPos = voxels.map(v => v.mesh.position.clone());
+            rewindStartQuat = voxels.map(v => v.mesh.quaternion.clone());
+
+            voxels.forEach(v => {
+                v.body.sleep(); // 물리 연산 잠시 중지 (애니메이션으로 제어하기 위해)
+            });
+        });
+
+        // --- Lights ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        const pointLight = new THREE.DirectionalLight(0xffffff, 1);
+        pointLight.position.set(5, 10, 7);
+        scene.add(pointLight);
+
+        // --- Animation Loop ---
+        const clock = new THREE.Clock();
+        const mouse = new THREE.Vector2(-10, -10);
+        const raycaster = new THREE.Raycaster();
+        let lastMousePos = new THREE.Vector2();
+        let mouseVelocity = 0;
+
+        function updateMouse(x, y) {
+            lastMousePos.copy(mouse);
+            mouse.x = (x / window.innerWidth) * 2 - 1;
+            mouse.y = -(y / window.innerHeight) * 2 + 1;
+            const dist = mouse.distanceTo(lastMousePos);
+            mouseVelocity = Math.min(dist * 100, 15);
+        }
+
+        window.addEventListener('mousemove', (e) => updateMouse(e.clientX, e.clientY));
+        window.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 0) updateMouse(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: false });
+        window.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 0) updateMouse(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: false });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = Math.min(clock.getDelta(), 0.1);
+
+            // 레이캐스팅 (마우스 위치 계산)
+            raycaster.setFromCamera(mouse, camera);
+            const mousePoint = new THREE.Vector3();
+            raycaster.ray.at(10, mousePoint);
+
+            // A. 시간 역행 (Rewind) 모드
+            if (isRewinding) {
+                rewindTime += delta;
+                const progress = Math.min(rewindTime / CONFIG.rewindDuration, 1.0);
+
+                // Ease Out Cubic 함수 (부드러운 도착)
+                const ease = 1 - Math.pow(1 - progress, 3);
+
+                voxels.forEach((v, i) => {
+                    // 위치 보간
+                    v.mesh.position.lerpVectors(rewindStartPos[i], v.target, ease);
+                    // 회전 보간
+                    v.mesh.quaternion.slerpQuaternions(rewindStartQuat[i], v.targetQuat, ease);
+
+                    // Cannon Body도 같이 이동시켜 줘야 함 (나중에 물리 다시 켜질 때를 대비)
+                    v.body.position.copy(v.mesh.position);
+                    v.body.quaternion.copy(v.mesh.quaternion);
+                    v.body.velocity.set(0, 0, 0);
+                    v.body.angularVelocity.set(0, 0, 0);
+                });
+
+                if (progress >= 1.0) {
+                    isRewinding = false;
+                    voxels.forEach(v => v.body.sleep()); // 완료 후 고정
+                }
+            }
+            // B. 물리 엔진 모드 (파괴 상태)
+            else {
+                world.step(1 / 60, delta);
+
+                voxels.forEach(v => {
+                    // 메쉬와 물리 바디 동기화
+                    v.mesh.position.copy(v.body.position);
+                    v.mesh.quaternion.copy(v.body.quaternion);
+
+                    // 마우스 인터랙션 (물리적 충격)
+                    const dx = v.body.position.x - mousePoint.x;
+                    const dy = v.body.position.y - mousePoint.y;
+                    const dz = v.body.position.z - mousePoint.z;
+                    const distSq = dx * dx + dy * dy + dz * dz;
+
+                    if (distSq < CONFIG.disruptionRadius * CONFIG.disruptionRadius) {
+                        v.body.wakeUp();
+                        const dist = Math.sqrt(distSq);
+                        const forceMag = Math.pow(1 - dist / CONFIG.disruptionRadius, 2) * CONFIG.mouseForce * (mouseVelocity + 1.0);
+                        const force = new CANNON.Vec3(dx, dy, dz).unit().scale(forceMag);
+                        v.body.applyImpulse(force, v.body.position);
+                    }
+
+                    // 만약 무너진 상태가 아니라면(초기 상태), 미세한 위치 보정 (Spring 대신 강제 고정으로 안정화)
+                    if (!isDestroyed && !isRewinding) {
+                        const distToTarget = v.body.position.distanceTo(v.target);
+                        if (distToTarget > 0.1) {
+                            // 너무 멀어지면 살짝 당김 (탄성)
+                            const k = 5;
+                            v.body.velocity.x += (v.target.x - v.body.position.x) * k * delta;
+                            v.body.velocity.y += (v.target.y - v.body.position.y) * k * delta;
+                            v.body.velocity.z += (v.target.z - v.body.position.z) * k * delta;
+                        }
+                    }
+                });
+            }
+
+            // C. 시각적 확대 효과 (Physics와 무관하게 항상 적용 - 렌더링 레벨)
+            voxels.forEach(v => {
+                const dx = v.mesh.position.x - mousePoint.x;
+                const dy = v.mesh.position.y - mousePoint.y;
+                const dist = Math.sqrt(dx * dx + dy * dy); // Z축 제외 평면 거리만 고려하거나 포함 가능
+
+                let targetScale = 1.0;
+                if (dist < CONFIG.scaleEffectRadius) {
+                    // 거리가 가까울수록 커짐
+                    const factor = 1 - (dist / CONFIG.scaleEffectRadius);
+                    targetScale = 1.0 + (CONFIG.maxScale - 1.0) * (factor * factor); // 제곱으로 부드럽게
+                }
+
+                // 부드러운 스케일링 (Lerp)
+                v.mesh.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
+            });
+
+            // 카메라 시차 효과
+            camera.position.x += (mouse.x * 0.5 - camera.position.x) * 0.05;
+            camera.position.y += (mouse.y * 0.5 - camera.position.y) * 0.05;
+            camera.lookAt(0, 0, 0);
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // --- Handle Resize ---
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+
+            const scale = getDynamicScale();
+            voxels.forEach(v => {
+                v.target.set(v.normX * scale, v.normY * scale, 0);
+            });
+            groundBody.position.set(0, -6, 0);
+        });
+
+    </script>
+</body>
+
+</html>
