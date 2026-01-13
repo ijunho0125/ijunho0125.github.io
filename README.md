@@ -22,4 +22,4 @@ A high-performance interactive 3D portfolio featuring physics simulations and a 
 Simply visit the [GitHub Pages](https://ijunho0125.github.io/) URL to interact with the portfolio.
 - Use **Disrupt** to explode the voxels.
 - Use **Time Rewind** to restore the original state.
-- Move your mouse or touch the screen to interact with individual voxels.
+- Move your mouse or touch the screen to interact with individual voxels!
