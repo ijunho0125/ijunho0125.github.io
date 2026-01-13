@@ -1,4 +1,4 @@
-test# BOOM Interactive Portfolio
+## BOOM Interactive Portfolio
 
 A high-performance interactive 3D portfolio featuring physics simulations and a modern glassmorphic UI.
 
